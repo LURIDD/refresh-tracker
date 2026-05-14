@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Refresh Tracker</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 13px;
+      background: #0f172a;
+      color: #e2e8f0;
+      width: 560px;
+      min-height: 400px;
+      max-height: 620px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      background: #1e293b;
+      padding: 12px 16px;
+      border-bottom: 1px solid #334155;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    header h1 { font-size: 15px; font-weight: 600; color: #f1f5f9; flex: 1; }
+
+    .badge {
+      background: #e53e3e;
+      color: white;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 10px;
+    }
+
+    .toolbar {
+      padding: 10px 16px;
+      background: #1e293b;
+      border-bottom: 1px solid #334155;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .toolbar input {
+      flex: 1;
+      background: #0f172a;
+      border: 1px solid #475569;
+      border-radius: 6px;
+      padding: 5px 10px;
+      color: #e2e8f0;
+      font-size: 12px;
+      outline: none;
+    }
+    .toolbar input:focus { border-color: #60a5fa; }
+    .toolbar input::placeholder { color: #64748b; }
+
+    .btn {
+      background: #334155;
+      color: #e2e8f0;
+      border: none;
+      border-radius: 6px;
+      padding: 5px 10px;
+      font-size: 12px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .btn:hover { background: #475569; }
+    .btn.danger { background: #7f1d1d; color: #fca5a5; }
+    .btn.danger:hover { background: #991b1b; }
+    .btn.primary { background: #1d4ed8; color: #bfdbfe; }
+    .btn.primary:hover { background: #2563eb; }
+
+    .filters {
+      padding: 8px 16px;
+      background: #1e293b;
+      border-bottom: 1px solid #334155;
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .filter-btn {
+      padding: 3px 10px;
+      border-radius: 12px;
+      border: 1px solid #475569;
+      background: transparent;
+      color: #94a3b8;
+      font-size: 11px;
+      cursor: pointer;
+    }
+    .filter-btn.active { background: #1d4ed8; border-color: #1d4ed8; color: white; }
+
+    .stats {
+      padding: 8px 16px;
+      background: #0f172a;
+      border-bottom: 1px solid #1e293b;
+      display: flex;
+      gap: 16px;
+      font-size: 11px;
+    }
+    .stats span { color: #94a3b8; }
+    .stats strong { color: #f1f5f9; }
+
+    .log-list { overflow-y: auto; flex: 1; }
+
+    /* ── Log entry ── */
+    .log-entry {
+      border-bottom: 1px solid #1e293b;
+    }
+
+    .log-entry-header {
+      padding: 10px 16px;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+    .log-entry-header:hover { background: #1e293b; }
+
+    .log-entry.reload  .log-entry-header { border-left: 3px solid #e53e3e; }
+    .log-entry.redirect .log-entry-header { border-left: 3px solid #f59e0b; }
+    .log-entry.auto    .log-entry-header { border-left: 3px solid #a855f7; }
+    .log-entry.normal  .log-entry-header { border-left: 3px solid #334155; }
+
+    .log-header-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .log-time {
+      font-weight: 700;
+      font-size: 14px;
+      color: #f1f5f9;
+      font-variant-numeric: tabular-nums;
+    }
+    .log-ms { font-size: 10px; color: #64748b; }
+
+    .log-type-badge {
+      font-size: 10px;
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+    .reload  .log-type-badge { background: #7f1d1d; color: #fca5a5; }
+    .redirect .log-type-badge { background: #78350f; color: #fde68a; }
+    .auto    .log-type-badge { background: #4c1d95; color: #ddd6fe; }
+    .normal  .log-type-badge { background: #1e3a5f; color: #93c5fd; }
+
+    .console-indicator {
+      font-size: 10px;
+      background: #1a2540;
+      border: 1px solid #334155;
+      color: #7c9bbf;
+      padding: 1px 6px;
+      border-radius: 4px;
+      margin-left: 2px;
+    }
+    .console-indicator.has-errors { border-color: #e53e3e; color: #fca5a5; background: #2d0e0e; }
+
+    .log-date { font-size: 11px; color: #64748b; margin-left: auto; }
+    .log-url {
+      font-size: 11px;
+      color: #60a5fa;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .log-title {
+      font-size: 11px;
+      color: #94a3b8;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .log-qualifiers { display: flex; gap: 4px; flex-wrap: wrap; }
+    .qualifier-tag {
+      font-size: 10px;
+      background: #1e293b;
+      border: 1px solid #334155;
+      color: #94a3b8;
+      padding: 0 5px;
+      border-radius: 3px;
+    }
+
+    /* ── Console panel ── */
+    .console-panel {
+      display: none;
+      background: #070d1a;
+      border-top: 1px solid #1e293b;
+      padding: 8px 12px;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    .console-panel.open { display: block; }
+
+    .console-panel-header {
+      font-size: 10px;
+      color: #475569;
+      margin-bottom: 6px;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .console-line {
+      font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
+      font-size: 11px;
+      line-height: 1.5;
+      padding: 2px 0;
+      border-bottom: 1px solid #0d1526;
+      display: flex;
+      gap: 8px;
+      align-items: baseline;
+    }
+    .console-line:last-child { border-bottom: none; }
+
+    .console-time { color: #334155; font-size: 10px; white-space: nowrap; }
+    .console-level {
+      font-size: 9px;
+      font-weight: 700;
+      padding: 0 4px;
+      border-radius: 3px;
+      white-space: nowrap;
+    }
+    .lvl-log   { background: #1e293b; color: #94a3b8; }
+    .lvl-info  { background: #1e3a5f; color: #93c5fd; }
+    .lvl-warn  { background: #431407; color: #fdba74; }
+    .lvl-error { background: #450a0a; color: #fca5a5; }
+    .lvl-debug { background: #1a1a2e; color: #818cf8; }
+    .lvl-uncaught_error  { background: #450a0a; color: #ff8080; }
+    .lvl-unhandled_rejection { background: #450a0a; color: #ff9580; }
+
+    .console-args {
+      color: #cbd5e1;
+      word-break: break-all;
+      white-space: pre-wrap;
+      flex: 1;
+    }
+
+    .no-console {
+      font-size: 11px;
+      color: #334155;
+      font-style: italic;
+      padding: 4px 0;
+    }
+
+    /* ── misc ── */
+    .empty { text-align: center; padding: 40px 20px; color: #475569; }
+    .empty h3 { margin-bottom: 8px; color: #64748b; }
+
+    footer {
+      padding: 8px 16px;
+      background: #1e293b;
+      border-top: 1px solid #334155;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    footer small { color: #475569; font-size: 10px; }
+
+    /* ── Debug panel ── */
+    .debug-panel {
+      background: #0a1628;
+      border: 1px solid #1e3a5f;
+      border-radius: 6px;
+      margin: 10px 16px;
+      padding: 10px 12px;
+      font-size: 11px;
+    }
+    .debug-panel h4 {
+      color: #60a5fa;
+      font-size: 11px;
+      margin-bottom: 8px;
+      font-weight: 600;
+    }
+    .debug-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 3px 0;
+      border-bottom: 1px solid #1e293b;
+      color: #64748b;
+    }
+    .debug-row:last-child { border-bottom: none; }
+    .debug-row span:last-child { color: #94a3b8; font-weight: 500; }
+    .debug-ok  { color: #4ade80 !important; }
+    .debug-err { color: #f87171 !important; }
+    .debug-warn { color: #fbbf24 !important; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Refresh Tracker</h1>
+    <span class="badge" id="reloadCount">0</span>
+  </header>
+
+  <div class="toolbar">
+    <input type="text" id="urlFilter" placeholder="URL filtresi (örn: myapp.local)..." />
+    <button class="btn primary" id="saveFilter">Kaydet</button>
+    <button class="btn" id="exportCsv">CSV</button>
+    <button class="btn danger" id="clearLogs">Temizle</button>
+  </div>
+
+  <div class="filters">
+    <button class="filter-btn active" data-filter="all">Tümü</button>
+    <button class="filter-btn" data-filter="auto">Otomatik</button>
+    <button class="filter-btn" data-filter="reload">Yenilemeler</button>
+    <button class="filter-btn" data-filter="redirect">Yönlendirmeler</button>
+  </div>
+
+  <div class="stats" id="stats">
+    <span>Toplam: <strong id="totalCount">0</strong></span>
+    <span>Otomatik: <strong id="autoCount">0</strong></span>
+    <span>Son: <strong id="lastEntry">—</strong></span>
+    <span>İlk: <strong id="firstEntry">—</strong></span>
+  </div>
+
+  <div id="debugPanel" class="debug-panel" style="display:none">
+    <h4>Tanılama</h4>
+    <div class="debug-row"><span>Uzantı arka planı</span><span id="dbg-bg">—</span></div>
+    <div class="debug-row"><span>webNavigation izni</span><span id="dbg-nav">—</span></div>
+    <div class="debug-row"><span>URL filtresi</span><span id="dbg-filter">—</span></div>
+    <div class="debug-row"><span>Son algılanan olay</span><span id="dbg-last">—</span></div>
+    <div class="debug-row"><span>Kayıtlı toplam olay</span><span id="dbg-total">—</span></div>
+    <div class="debug-row"><span>uBlock Origin notu</span><span style="color:#fbbf24">Console için etkisiz, nav. takibi tamam</span></div>
+  </div>
+
+  <div class="log-list" id="logList">
+    <div class="empty">
+      <h3>Henüz kayıt yok</h3>
+      <p>Sayfa yenilendikçe kayıtlar burada görünecek.</p>
+    </div>
+  </div>
+
+  <footer>
+    <small>Son 500 kayıt · Console logları otomatik yenilemelerde yakalanır</small>
+    <button class="btn" id="toggleDebug" style="font-size:10px;padding:3px 8px;background:#1e293b">Tanılama</button>
+    <small id="filterStatus">Filtre: Yok</small>
+  </footer>
+
+  <script src="popup.js"></script>
+</body>
+</html>
