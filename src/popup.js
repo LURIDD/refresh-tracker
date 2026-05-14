@@ -12,7 +12,10 @@ async function loadLogs() {
   allLogs = result.logs || [];
 
   const filterUrl = result.filterUrl || "";
-  document.getElementById("urlFilter").value = filterUrl;
+  const urlFilterEl = document.getElementById("urlFilter");
+  if (document.activeElement !== urlFilterEl) {
+    urlFilterEl.value = filterUrl;
+  }
   document.getElementById("filterStatus").textContent = filterUrl
     ? `Filtre: ${filterUrl}`
     : "Filtre: Yok";
