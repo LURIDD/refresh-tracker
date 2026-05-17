@@ -11,7 +11,7 @@ const consoleBuffer = new Map();
 // Dedup: track recent content-script navigations to avoid double-logging
 // when webNavigation API also fires. Key: "tabId:url", value: timestamp ms
 const recentContentNavs = new Map();
-const DEDUP_WINDOW_MS = 3000;
+const DEDUP_WINDOW_MS = 500;
 
 const TRANSITION_TYPES = {
   reload:       "Yenileme (Reload)",
@@ -56,11 +56,16 @@ function isAutomaticFromWebNav(transitionType, qualifiers) {
 }
 
 async function saveLogEntry(logEntry) {
-  const result = (await storage.get(["logs", "filterUrl"])) || {};
+  const result = (await storage.get(["logs", "filterUrls", "filterUrl", "notifEnabled"])) || {};
   const logs = result.logs || [];
-  const filterUrl = (result.filterUrl || "").trim();
 
-  if (filterUrl && !(logEntry.url || "").includes(filterUrl)) return;
+  // Çoklu URL filtresi — filterUrls (array) öncelikli, eski filterUrl'den migrate et
+  let filterUrls = result.filterUrls;
+  if (!filterUrls) {
+    const old = (result.filterUrl || "").trim();
+    filterUrls = old ? [old] : [];
+  }
+  if (filterUrls.length > 0 && !filterUrls.some(f => f && (logEntry.url || "").includes(f))) return;
 
   // Avoid duplicate ids
   if (logs.some(l => l.id === logEntry.id)) return;
@@ -73,6 +78,21 @@ async function saveLogEntry(logEntry) {
   const autoCount = logs.filter(l => l.isAutomatic || l.isReload).length;
   badgeApi.setBadgeText({ text: autoCount > 0 ? String(autoCount) : "" });
   badgeApi.setBadgeBackgroundColor({ color: "#e53e3e" });
+
+  // Bildirim — yalnızca navigasyon olayları, ws/js değil
+  if (result.notifEnabled && !logEntry.kind && (logEntry.isAutomatic || logEntry.isReload)) {
+    const typeLabel = logEntry.isClientRedirect ? "JS Yönlendirmesi"
+                    : logEntry.isServerRedirect  ? "Sunucu Yönlendirmesi"
+                    : logEntry.isReload           ? "Yenileme"
+                    : "Otomatik Navigasyon";
+    const shortUrl = (logEntry.url || "").replace(/^https?:\/\//, "").substring(0, 60);
+    chrome.notifications.create(`rt-${logEntry.id}`, {
+      type: "basic",
+      iconUrl: "icons/icon48.png",
+      title: "Refresh Tracker — " + typeLabel,
+      message: shortUrl
+    });
+  }
 }
 
 // ── RT_NAVIGATION: content script reports page load (primary, cross-browser) ──
@@ -84,6 +104,50 @@ chrome.runtime.onMessage.addListener((msg, sender) => {
     const buf = consoleBuffer.get(tabId);
     buf.push({ level: msg.level, args: msg.args, timestamp: msg.timestamp, url: msg.url });
     if (buf.length > MAX_CONSOLE_PER_TAB) buf.shift();
+    return;
+  }
+
+  if (msg.type === "RT_WS_EVENT") {
+    const tabId = sender.tab?.id;
+    if (!tabId) return;
+    const now = new Date(msg.timestamp);
+    saveLogEntry({
+      id: now.getTime(),
+      kind: "ws_event",
+      wsEvent: msg.event,
+      wsUrl: msg.wsUrl,
+      code: msg.code,
+      reason: msg.reason,
+      wasClean: msg.wasClean,
+      timestamp: msg.timestamp,
+      date: now.toLocaleDateString("tr-TR"),
+      time: now.toLocaleTimeString("tr-TR", { hour12: false }),
+      milliseconds: now.getMilliseconds(),
+      url: msg.url,
+      tabId,
+      source: "injected"
+    });
+    return;
+  }
+
+  if (msg.type === "RT_JS_NAV") {
+    const tabId = sender.tab?.id;
+    if (!tabId) return;
+    const now = new Date(msg.timestamp);
+    saveLogEntry({
+      id: now.getTime(),
+      kind: "js_nav",
+      method: msg.method,
+      targetUrl: msg.targetUrl,
+      stack: msg.stack,
+      timestamp: msg.timestamp,
+      date: now.toLocaleDateString("tr-TR"),
+      time: now.toLocaleTimeString("tr-TR", { hour12: false }),
+      milliseconds: now.getMilliseconds(),
+      url: msg.url,
+      tabId,
+      source: "injected"
+    });
     return;
   }
 
