@@ -20,8 +20,39 @@ s.src = chrome.runtime.getURL("injected.js");
 document.documentElement.prepend(s);
 s.remove();
 
+// --- 3. Forward injected.js messages to background ---
 window.addEventListener("message", (e) => {
   if (e.source !== window || !e.data || !e.data.__RT__) return;
+
+  const t = e.data.__RT_TYPE__;
+
+  if (t === "ws") {
+    chrome.runtime.sendMessage({
+      type: "RT_WS_EVENT",
+      event: e.data.event,
+      wsUrl: e.data.wsUrl,
+      code: e.data.code,
+      reason: e.data.reason,
+      wasClean: e.data.wasClean,
+      timestamp: e.data.timestamp,
+      url: location.href
+    }).catch(() => {});
+    return;
+  }
+
+  if (t === "js_nav") {
+    chrome.runtime.sendMessage({
+      type: "RT_JS_NAV",
+      method: e.data.method,
+      targetUrl: e.data.targetUrl,
+      stack: e.data.stack,
+      timestamp: e.data.timestamp,
+      url: location.href
+    }).catch(() => {});
+    return;
+  }
+
+  // console (t === "console" veya eski format)
   chrome.runtime.sendMessage({
     type: "RT_CONSOLE",
     level: e.data.level,

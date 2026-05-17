@@ -12,7 +12,8 @@
   "permissions": [
     "storage",
     "webNavigation",
-    "tabs"
+    "tabs",
+    "notifications"
   ],
   "background": {
     "scripts": ["background.js"],
